@@ -99,14 +99,14 @@ def finalize_numpy_mat(
 
 def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
     # this actually computes [sig(dot1) sig(dot2) ... ]
-    # sum(N x M * N x M)
-    # result => N => N x 1
+    # sumEachRow(N x M * N x M)
+    # result => N == reshape ==> N x 1
     # dot product => can get big => word and context are similar => sigmoid maps the result to -1, 1
     output = sigmoid(np.sum(main_emb * context_emb, axis=1)).reshape(-1, 1)
 
-    # Imagine two vectors u and v, compute d=u-v, if we want them to get closer or further appart, reduce the cos gap in that dir!
-    # eg.1 error > 0 and u-v > 0, then move v to get close to u
-    # eg.2 error < 0 and u-v > 0, then move v to get further apart from u
+    # Suppose we have u and v, compute dir=u-v, if we want them to get closer or further apart, reduce the cosine gap in that dir!
+    # ex.1 error > 0 and u-v > 0, then move v to get close to u
+    # ex.2 error < 0 and u-v > 0, then move v to get further apart from u
     update_dirs = context_emb - main_emb
 
     # N x 1 - N x 1
@@ -118,8 +118,25 @@ def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
     # N x M
     deltas = update_dirs * errors * learning_rate
 
-    main_emb += deltas
-    context_emb -= deltas
+    # main_emb += deltas
+    # context_emb -= deltas
+
+    # This suprisingly makes it converge faster
+    center = {}
+    context = {}
+    for i in range(len(debug_ret)):
+        w, c, _l = debug_ret[i]
+        if w not in center:
+            center[w] = deltas[i]
+        else:
+            center[w] += deltas[i]
+        if c not in context:
+            context[c] = deltas[i]
+        else:
+            context[c] += deltas[i]
+
+    main_emb += np.array([center[debug_ret[i][0]] for i in range(len(debug_ret))])
+    context_emb -= np.array([context[debug_ret[i][0]] for i in range(len(debug_ret))])
 
     return normalize(main_emb), normalize(context_emb), np.average(errors)
 
@@ -127,16 +144,16 @@ def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
 def train(pure_tokens: List[Token], dim_emb, *, steps, learning_rate=0.01):
     debug_ret, labels = vectorize(pure_tokens)
 
-    # random, normalized vectors LEN(TOKENS) * DIM_EMB
     # word embedding (the result)
     main_emb = normalize(np.random.normal(0, 0.1, (len(labels), dim_emb)))
     # neighbourhood embedding of a token
     context_emb = normalize(np.random.normal(0, 0.1, (len(labels), dim_emb)))
 
+    print(f"Embedding dim {dim_emb}")
     for step in range(1, steps + 1):
         main_emb, context_emb, err = train_step(
             main_emb, context_emb, debug_ret, labels, learning_rate
         )
-        print(f"Step {step} | avg error {err}")
+        print(f"Step {step}/{steps} | avg error {err}")
 
     return finalize_numpy_mat(debug_ret, main_emb)
