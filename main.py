@@ -6,7 +6,7 @@ import json
 import re
 
 
-def find_closest_vector(vec, vectors: Dict[str, List[float]], top=10):
+def find_closest_vectors(vec, vectors: Dict[str, List[float]], max_items=10):
     focus = np.array(vec)
     len_f = np.sqrt((focus * focus).sum())
     # u.v = |u||v| cos(u, v) => cos(u, v) = u.v / |u||v|
@@ -17,28 +17,28 @@ def find_closest_vector(vec, vectors: Dict[str, List[float]], top=10):
         cosine = dot / (len_v * len_f)
         ret.append((k, abs(cosine)))
     # the closer the cosine is to 1, the better the similarity is
-    return sorted(ret, key=lambda tup: tup[1], reverse=True)[:top]
+    return sorted(ret, key=lambda tup: tup[1], reverse=True)[:max_items]
 
 
-def find_closest(word: str, vectors: Dict[str, List[float]], top=10):
+def find_closest(word: str, vectors: Dict[str, List[float]], max_items=10):
     word = word.strip()
     if word not in vectors:
         raise Exception(f"{word} is not part of the knowledge base")
-    return find_closest_vector(vectors[word], vectors, top)
+    return find_closest_vectors(vectors[word], vectors, max_items)
 
 
-def eval_expr(expr: str, vectors: Dict[str, List[float]], top=10):
+def eval_expr(expr: str, vectors: Dict[str, List[float]], max_items=10):
     __ = lambda s: np.array(vectors[s])
     to_eval = re.sub(r"([A-Za-z]+)", '__("\\1")', expr)
     # print(f"  ## Interpreting as '{to_eval}' ##")
-    return find_closest_vector(normalize_flat_np(eval(to_eval)), vectors, top)
+    return find_closest_vectors(normalize_flat_np(eval(to_eval)), vectors, max_items)
 
 
 # ---------------------------------------
 
 
-pure_tokens = prepare_datas("datas/text.txt", "datas/stop.txt", window=3, neg_count=2)
-vectors = train(pure_tokens, dim_emb=50, steps=200, learning_rate=0.05)
+pure_tokens = prepare_datas("datas/text.txt", "datas/stop.txt", window=2, neg_count=2)
+vectors = train(pure_tokens, dim_emb=10, steps=200, learning_rate=0.1)
 # print(json.dumps(vectors, sort_keys=True, indent=4))
 
 with open("output.json", "w") as f:
@@ -46,17 +46,19 @@ with open("output.json", "w") as f:
     f.close()
 
 print("Find the closest word or closest resulting word algebra")
-print(" Examples: hello, dogs, cats+animals-humans  (depends on the dataset!)")
+print(" Examples: hello, dogs, cats+animals-humans  (depends on the vocabulary set!)")
 
 top = 10
 
 while True:
     val = input(">> ").lower()
     try:
+        ret = []
         if re.search("[+\-/*]", val) is None:
-            print(find_closest(val, vectors, top))
+            ret = find_closest(val, vectors, top)
         else:
-            print(eval_expr(val, vectors, top))
+            ret = eval_expr(val, vectors, top)
+        print(", ".join(ret))
     except Exception as e:
         print(f"Error {e}")
     print()

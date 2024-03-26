@@ -1,3 +1,4 @@
+import math
 import numpy as np
 
 from dataclasses import dataclass
@@ -126,17 +127,12 @@ def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
     context = {}
     for i in range(len(debug_ret)):
         w, c, _l = debug_ret[i]
-        if w not in center:
-            center[w] = deltas[i]
-        else:
-            center[w] += deltas[i]
-        if c not in context:
-            context[c] = deltas[i]
-        else:
-            context[c] += deltas[i]
+        delta = deltas[i]
+        center[w] = delta if w not in center else (delta + center[w])
+        context[c] = delta if c not in context else (delta + context[c])
 
     main_emb += np.array([center[debug_ret[i][0]] for i in range(len(debug_ret))])
-    context_emb -= np.array([context[debug_ret[i][0]] for i in range(len(debug_ret))])
+    context_emb -= np.array([context[debug_ret[i][1]] for i in range(len(debug_ret))])
 
     return normalize(main_emb), normalize(context_emb), np.average(errors)
 
@@ -145,15 +141,16 @@ def train(pure_tokens: List[Token], dim_emb, *, steps, learning_rate=0.01):
     debug_ret, labels = vectorize(pure_tokens)
 
     # word embedding (the result)
-    main_emb = normalize(np.random.normal(0, 0.1, (len(labels), dim_emb)))
+    main_emb = normalize(np.random.uniform(-0.5, 0.5, (len(labels), dim_emb)))
     # neighbourhood embedding of a token
-    context_emb = normalize(np.random.normal(0, 0.1, (len(labels), dim_emb)))
+    context_emb = normalize(np.random.uniform(-0.5, 0.5, (len(labels), dim_emb)))
 
-    print(f"Embedding dim {dim_emb}")
+    print(f"Embedding dim {dim_emb} | Total steps {steps}")
     for step in range(1, steps + 1):
         main_emb, context_emb, err = train_step(
             main_emb, context_emb, debug_ret, labels, learning_rate
         )
-        print(f"Step {step}/{steps} | avg error {err}")
+        if step % math.floor(steps / 4) == 0:
+            print(f"Step {step}/{steps} | avg error {err}")
 
     return finalize_numpy_mat(debug_ret, main_emb)
