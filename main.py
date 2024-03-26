@@ -37,8 +37,8 @@ def eval_expr(expr: str, vectors: Dict[str, List[float]], max_items=10):
 # ---------------------------------------
 
 
-pure_tokens = prepare_datas("datas/text.txt", "datas/stop.txt", window=2, neg_count=2)
-vectors = train(pure_tokens, dim_emb=10, steps=200, learning_rate=0.1)
+pure_tokens = prepare_datas("datas/text.txt", "datas/stop.txt", window=4, neg_count=2)
+vectors = train(pure_tokens, dim_emb=50, steps=500, learning_rate=0.01)
 # print(json.dumps(vectors, sort_keys=True, indent=4))
 
 with open("output.json", "w") as f:
@@ -58,7 +58,7 @@ while True:
             ret = find_closest(val, vectors, top)
         else:
             ret = eval_expr(val, vectors, top)
-        print(", ".join(ret))
+        print(", ".join([f"{k} {np.round(v, 2)}" for k, v in ret]))
     except Exception as e:
         print(f"Error {e}")
     print()
