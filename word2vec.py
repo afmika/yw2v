@@ -56,16 +56,16 @@ def prepare_datas(
 
 def vectorize(tokens: List[Token]) -> Tuple[List[Tuple[str, str, float]], any]:
     ret = []
-    debug_ret = []
+    verbose_ret = []
     # note, the position actually encodes the text
     for token in tokens:
         for context in token.context:
             ret.append(1.0)
-            debug_ret.append((token.center, context, 1.0))
+            verbose_ret.append((token.center, context, 1.0))
         for negative in token.negative:
             ret.append(0.0)
-            debug_ret.append((token.center, negative, 0.0))
-    return debug_ret, np.array([ret]).T
+            verbose_ret.append((token.center, negative, 0.0))
+    return verbose_ret, np.array([ret]).T
 
 
 def normalize(items):
@@ -87,22 +87,18 @@ def finalize_numpy_mat(
     # 1. order is preserved
     # 2. Same words map to the same vector, hence averaging the sum for common hit
     for i in range(len(tokens)):
-        w, _c, _label = tokens[i]
+        w, _, _ = tokens[i]
         vec = mat[i]
-        if w not in ret:
-            ret[w] = (vec, 1)
-        else:
-            ret[w] = (ret[w][0] + vec, ret[w][1] + 1)
+        ret[w] = (vec, 1) if w not in ret else (ret[w][0] + vec, ret[w][1] + 1)
 
     # TODO: how good is this compared to the harmonic mean? Although, it requires vec[i,j]!=0
-    return {k: (agg_vec / total).tolist() for k, (agg_vec, total) in ret.items()}
+    return {
+        k: normalize_flat_np(agg_vec / total).tolist()
+        for k, (agg_vec, total) in ret.items()
+    }
 
 
-def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
-    # this actually computes [sig(dot1) sig(dot2) ... ]
-    # sumEachRow(N x M * N x M)
-    # result => N == reshape ==> N x 1
-    # dot product => can get big => word and context are similar => sigmoid maps the result to -1, 1
+def train_step(main_emb, context_emb, verbose_ret, labels, learning_rate=0.1):
     output = sigmoid(np.sum(main_emb * context_emb, axis=1)).reshape(-1, 1)
 
     # Suppose we have u and v, compute dir=u-v, if we want them to get closer or further apart, reduce the cosine gap in that dir!
@@ -112,7 +108,7 @@ def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
 
     # N x 1 - N x 1
     # magnitude getting them closer or further apart
-    # the error capture the distance anyways so naturally we move proportionnal to how bad we are
+    # the error captures the distance and a direction, move proportionnal to how bad we are
     errors = labels - output
 
     # core idea, the learning rate is just there to fasten up things or slow down
@@ -123,34 +119,33 @@ def train_step(main_emb, context_emb, debug_ret, labels, learning_rate=0.1):
     # context_emb -= deltas
 
     # This suprisingly makes it converge faster
-    center = {}
-    context = {}
-    for i in range(len(debug_ret)):
-        w, c, _l = debug_ret[i]
+    center, context = {}, {}
+    for i in range(len(verbose_ret)):
+        w, c, _ = verbose_ret[i]
         delta = deltas[i]
         center[w] = delta if w not in center else (delta + center[w])
         context[c] = delta if c not in context else (delta + context[c])
 
-    main_emb += np.array([center[debug_ret[i][0]] for i in range(len(debug_ret))])
-    context_emb -= np.array([context[debug_ret[i][1]] for i in range(len(debug_ret))])
+    main_emb += np.array([center[w] for w, _, _ in verbose_ret])
+    context_emb -= np.array([context[c] for _, c, _ in verbose_ret])
 
     return normalize(main_emb), normalize(context_emb), np.average(errors)
 
 
 def train(pure_tokens: List[Token], dim_emb, *, steps, learning_rate=0.01):
-    debug_ret, labels = vectorize(pure_tokens)
+    verbose_ret, labels = vectorize(pure_tokens)
 
     # word embedding (the result)
     main_emb = normalize(np.random.uniform(-0.5, 0.5, (len(labels), dim_emb)))
-    # neighbourhood embedding of a token
+    # neighbourhood embedding of a center word
     context_emb = normalize(np.random.uniform(-0.5, 0.5, (len(labels), dim_emb)))
 
     print(f"Embedding dim {dim_emb} | Total steps {steps}")
     for step in range(1, steps + 1):
         main_emb, context_emb, err = train_step(
-            main_emb, context_emb, debug_ret, labels, learning_rate
+            main_emb, context_emb, verbose_ret, labels, learning_rate
         )
         if step % math.floor(steps / 4) == 0:
             print(f"Step {step}/{steps} | avg error {err}")
 
-    return finalize_numpy_mat(debug_ret, main_emb)
+    return finalize_numpy_mat(verbose_ret, main_emb)

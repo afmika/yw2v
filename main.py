@@ -48,7 +48,7 @@ with open("output.json", "w") as f:
 print("Find the closest word or closest resulting word algebra")
 print(" Examples: hello, dogs, cats+animals-humans  (depends on the vocabulary set!)")
 
-top = 10
+top = 20
 
 while True:
     val = input(">> ").lower()
