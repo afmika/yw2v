@@ -73,7 +73,7 @@ def normalize(items):
 
 
 def normalize_flat_np(items):
-    return items / np.sqrt(items**2).sum()
+    return items / np.sqrt((items**2).sum())
 
 
 def sigmoid(v):
