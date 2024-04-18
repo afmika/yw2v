@@ -51,6 +51,8 @@ def prepare_datas(
             retries -= 1
 
         ret.append(Token(tokens[i], context, negative))
+    if len(ret) == 0:
+        raise Exception(f"0 token found in {text_path}")
     return ret
 
 
