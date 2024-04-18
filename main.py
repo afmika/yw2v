@@ -97,11 +97,11 @@ print(" Furthest: !bird, !many")
 top = 20
 
 while True:
-    val = input(">> ").lower()
+    val = input(">> ").lower().strip()
     try:
         ret = []
         if re.search("[+\-/*]", val) is None:
-            if val.strip().startswith("!"):
+            if val.startswith("!"):
                 ret = find_furthest(val.removeprefix("!"), vectors, top)
             else:
                 ret = find_closest(val, vectors, top)
