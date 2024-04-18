@@ -15,7 +15,7 @@ def find_closest_vectors(vec, vectors: Dict[str, List[float]], max_items=10):
         dot = (focus * np.array(v)).sum()
         len_v = np.sqrt((np.array(v) * np.array(v)).sum())
         cosine = dot / (len_v * len_f)
-        ret.append((k, abs(cosine)))
+        ret.append((k, cosine))
     # the closer the cosine is to 1, the better the similarity is
     return sorted(ret, key=lambda tup: tup[1], reverse=True)[:max_items]
 
